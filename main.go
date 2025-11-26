@@ -175,15 +175,12 @@ func getConnection(config ConnectionConfig) (*sql.DB, error) {
 }
 
 func queryMetric(db *sql.DB, query string) (int64, error) {
-	log.Printf("Executing query: %s", query)
-
 	var result int64
 	err := db.QueryRow(query).Scan(&result)
 	if err != nil {
 		log.Printf(" Query execution failed: %v", err)
 		return 0, fmt.Errorf("query execution failed: %v", err)
 	}
-
 	log.Printf("Query result: %d", result)
 	return result, nil
 }
@@ -196,7 +193,6 @@ func (s *HANAScaler) IsActive(ctx context.Context, req *pb.ScaledObjectRef) (*pb
 		log.Printf("Failed to parse metadata: %v", err)
 		return nil, status.Errorf(codes.InvalidArgument, "failed to parse metadata: %v", err)
 	}
-
 	db, err := getConnection(metadata.ConnectionConfig)
 	if err != nil {
 		log.Printf(" Failed to connect to HANA: %v", err)
@@ -209,9 +205,7 @@ func (s *HANAScaler) IsActive(ctx context.Context, req *pb.ScaledObjectRef) (*pb
 		log.Printf("Failed to query metric: %v", err)
 		return nil, status.Errorf(codes.Internal, "failed to query metric: %v", err)
 	}
-
 	isActive := metricValue >= metadata.ActivationThreshold
-
 	log.Printf("IsActive check: metricValue=%d, activationThreshold=%d, isActive=%v",
 		metricValue, metadata.ActivationThreshold, isActive)
 
@@ -222,16 +216,12 @@ func (s *HANAScaler) IsActive(ctx context.Context, req *pb.ScaledObjectRef) (*pb
 
 // GetMetricSpec returns the metric specification
 func (s *HANAScaler) GetMetricSpec(ctx context.Context, req *pb.ScaledObjectRef) (*pb.GetMetricSpecResponse, error) {
-	log.Printf(" GetMetricSpec called")
-	log.Printf("Received metadata: %v", req.GetScalerMetadata())
 	metadata, err := parseMetadata(req.GetScalerMetadata())
 	if err != nil {
 		log.Printf(" Failed to parse metadata: %v", err)
 		return nil, status.Errorf(codes.InvalidArgument, "failed to parse metadata: %v", err)
 	}
-
 	log.Printf("Returning metric spec: threshold=%d", metadata.Threshold)
-
 	return &pb.GetMetricSpecResponse{
 		MetricSpecs: []*pb.MetricSpec{{
 			MetricName: "hana-metric",
@@ -285,21 +275,12 @@ func main() {
 	if port == "" {
 		port = "6000"
 	}
-	log.Printf("Using port: %s", port)
-
 	lis, err := net.Listen("tcp", fmt.Sprintf(":%s", port))
 	if err != nil {
 		log.Fatalf("Failed to listen on port %s: %v", port, err)
 	}
-	log.Printf("TCP listener created successfully on port %s", port)
-
 	grpcServer := grpc.NewServer()
 	pb.RegisterExternalScalerServer(grpcServer, &HANAScaler{})
-	log.Printf("gRPC server registered")
-
-	log.Printf("HANA KEDA Scaler is now listening on port %s and ready to accept connections", port)
-	log.Printf(" Blocking on Serve() - waiting for gRPC requests...")
-
 	if err := grpcServer.Serve(lis); err != nil {
 		log.Fatalf("Failed to serve: %v", err)
 	}
