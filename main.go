@@ -65,7 +65,7 @@ func parseConnectionFromEnv() (*ConnectionConfig, error) {
 		return nil, fmt.Errorf("missing required environment variables: %v", missingFields)
 	}
 
-	log.Printf("✅ Connection Config loaded from ENV")
+	log.Printf("Connection Config loaded from ENV")
 	log.Printf("  Host: %s", config.Host)
 	log.Printf("  User: %s", config.User)
 	return config, nil
@@ -128,7 +128,7 @@ func getConnection(config ConnectionConfig) (*sql.DB, error) {
 	addr := net.JoinHostPort(config.Host, config.Port)
 
 	if isHANACloud {
-		log.Printf("🌐 Connecting to HANA Cloud: %s", addr)
+		log.Printf(" Connecting to HANA Cloud: %s", addr)
 		tlsConfig := &tls.Config{
 			ServerName:         config.Host,
 			MinVersion:         tls.VersionTLS12,
@@ -141,7 +141,7 @@ func getConnection(config ConnectionConfig) (*sql.DB, error) {
 			config.Password,
 		)
 		connector.SetTLSConfig(tlsConfig)
-		log.Printf("🔐 TLS config set successfully on connector")
+		log.Printf(" TLS config set successfully on connector")
 
 		db = sql.OpenDB(connector)
 
@@ -162,7 +162,7 @@ func getConnection(config ConnectionConfig) (*sql.DB, error) {
 	db.SetMaxIdleConns(2)
 	db.SetConnMaxLifetime(time.Minute * 5)
 
-	log.Printf("🔍 Testing connection with Ping...")
+	log.Printf(" Testing connection with Ping...")
 	err = db.Ping()
 	if err != nil {
 		log.Printf(" Failed to ping database: %v", err)
@@ -189,7 +189,7 @@ func queryMetric(db *sql.DB, query string) (int64, error) {
 }
 
 func (s *HANAScaler) IsActive(ctx context.Context, req *pb.ScaledObjectRef) (*pb.IsActiveResponse, error) {
-	log.Printf("🔔 IsActive called")
+	log.Printf("IsActive called")
 	log.Printf("Received metadata: %v", req.GetScalerMetadata())
 	metadata, err := parseMetadata(req.GetScalerMetadata())
 	if err != nil {
@@ -252,7 +252,7 @@ func (s *HANAScaler) GetMetrics(ctx context.Context, req *pb.GetMetricsRequest) 
 
 	db, err := getConnection(metadata.ConnectionConfig)
 	if err != nil {
-		log.Printf(" Failed to connect to HANA: %v", err)
+		log.Printf("Failed to connect to HANA: %v", err)
 		return nil, status.Errorf(codes.Internal, "failed to connect to HANA: %v", err)
 	}
 	defer db.Close()
@@ -285,13 +285,13 @@ func main() {
 	if port == "" {
 		port = "6000"
 	}
-	log.Printf("📡 Using port: %s", port)
+	log.Printf("Using port: %s", port)
 
 	lis, err := net.Listen("tcp", fmt.Sprintf(":%s", port))
 	if err != nil {
 		log.Fatalf("Failed to listen on port %s: %v", port, err)
 	}
-	log.Printf(" TCP listener created successfully on port %s", port)
+	log.Printf("TCP listener created successfully on port %s", port)
 
 	grpcServer := grpc.NewServer()
 	pb.RegisterExternalScalerServer(grpcServer, &HANAScaler{})
