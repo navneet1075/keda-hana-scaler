@@ -8,6 +8,8 @@ import (
 	"log"
 	"net"
 	"os"
+	"os/signal"
+	"syscall"
 	"strconv"
 	"time"
 
@@ -270,18 +272,53 @@ func (s *HANAScaler) StreamIsActive(req *pb.ScaledObjectRef, stream pb.ExternalS
 
 func main() {
 	log.Printf("🚀 Starting HANA KEDA External Scaler...")
-
+	
 	port := os.Getenv("GRPC_PORT")
 	if port == "" {
 		port = "6000"
 	}
+	
 	lis, err := net.Listen("tcp", fmt.Sprintf(":%s", port))
 	if err != nil {
 		log.Fatalf("Failed to listen on port %s: %v", port, err)
 	}
+	
 	grpcServer := grpc.NewServer()
 	pb.RegisterExternalScalerServer(grpcServer, &HANAScaler{})
-	if err := grpcServer.Serve(lis); err != nil {
+	
+	serverErrors := make(chan error, 1)
+	
+	go func() {
+		log.Printf(" gRPC server listening on port %s", port)
+		serverErrors <- grpcServer.Serve(lis)
+	}()
+	
+	shutdown := make(chan os.Signal, 1)
+	signal.Notify(shutdown, os.Interrupt, syscall.SIGTERM)
+	
+	// Block until we receive a signal or an error
+	select {
+	case err := <-serverErrors:
 		log.Fatalf("Failed to serve: %v", err)
+	case sig := <-shutdown:
+		log.Printf("Received signal: %v, initiating graceful shutdown...", sig)
+		
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		
+		stopped := make(chan struct{})
+		go func() {
+			grpcServer.GracefulStop()
+			close(stopped)
+		}()
+		
+		// Wait for graceful shutdown or timeout
+		select {
+		case <-ctx.Done():
+			log.Printf("⚠️  Shutdown timeout, forcing stop...")
+			grpcServer.Stop()
+		case <-stopped:
+			log.Printf("✅ Server stopped gracefully")
+		}
 	}
 }
